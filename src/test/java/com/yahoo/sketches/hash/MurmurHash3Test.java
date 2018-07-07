@@ -10,10 +10,12 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.yahoo.memory.Memory;
+
 /**
  * Tests the MurmurHash3 against specific, known hash results given known
  * inputs obtained from the public domain C++ version 150.
- * 
+ *
  * @author Lee Rhodes
  */
 public class MurmurHash3Test {
@@ -55,7 +57,7 @@ public class MurmurHash3Test {
   }
 
   @Test
-  public void checkByteArrReaminderEQ8() { //byte[], test a remainder = 8
+  public void checkByteArrRemainderEQ8() { //byte[], test a remainder = 8
     String keyStr = "The quick brown fox jumps over the lazy1";
     byte[] key = keyStr.getBytes(UTF_8);
     long[] result = hash(key, 0);
@@ -64,9 +66,59 @@ public class MurmurHash3Test {
     long h2 = 0xbdbf05f8da0f0392L;
     Assert.assertEquals(result[0], h1);
     Assert.assertEquals(result[1], h2);
-
   }
 
+  @Test
+  public void checkMemoryRemainderGT8() { //byte[], remainder > 8
+    String keyStr = "The quick brown fox jumps over the lazy dog";
+    byte[] byteKey = keyStr.getBytes(UTF_8);
+    Memory key = Memory.wrap(byteKey);
+    long[] result = hash(key, 0, byteKey.length, 0);
+    //Should be:
+    long h1 = 0xe34bbc7bbc071b6cL;
+    long h2 = 0x7a433ca9c49a9347L;
+    Assert.assertEquals(result[0], h1);
+    Assert.assertEquals(result[1], h2);
+  }
+
+  @Test
+  public void checkMemoryChange1bit() { //byte[], change one bit
+    String keyStr = "The quick brown fox jumps over the lazy eog";
+    byte[] byteKey = keyStr.getBytes(UTF_8);
+    Memory key = Memory.wrap(byteKey);
+    long[] result = hash(key, 0, byteKey.length, 0);
+    //Should be:
+    long h1 = 0x362108102c62d1c9L;
+    long h2 = 0x3285cd100292b305L;
+    Assert.assertEquals(result[0], h1);
+    Assert.assertEquals(result[1], h2);
+  }
+
+  @Test
+  public void checMemoryRemainderLt8() { //byte[], test a remainder < 8
+    String keyStr = "The quick brown fox jumps over the lazy dogdogdog";
+    byte[] byteKey = keyStr.getBytes(UTF_8);
+    Memory key = Memory.wrap(byteKey);
+    long[] result = hash(key, 0, byteKey.length, 0);
+    //Should be;
+    long h1 = 0x9c8205300e612fc4L;
+    long h2 = 0xcbc0af6136aa3df9L;
+    Assert.assertEquals(result[0], h1);
+    Assert.assertEquals(result[1], h2);
+  }
+
+  @Test
+  public void checkMemoryRemainderEQ8() { //byte[], test a remainder = 8
+    String keyStr = "The quick brown fox jumps over the lazy1";
+    byte[] byteKey = keyStr.getBytes(UTF_8);
+    Memory key = Memory.wrap(byteKey);
+    long[] result = hash(key, 0, byteKey.length, 0);
+    //Should be:
+    long h1 = 0xe3301a827e5cdfe3L;
+    long h2 = 0xbdbf05f8da0f0392L;
+    Assert.assertEquals(result[0], h1);
+    Assert.assertEquals(result[1], h2);
+  }
   /**
    * This test should have the exact same output as Test4
    */
@@ -109,8 +161,8 @@ public class MurmurHash3Test {
     Assert.assertEquals(result[0], h1);
     Assert.assertEquals(result[1], h2);
   }
-  
-  
+
+
   /**
    * Tests an odd remainder of int[].
    */
@@ -141,7 +193,7 @@ public class MurmurHash3Test {
     Assert.assertEquals(result[0], h1);
     Assert.assertEquals(result[1], h2);
   }
-  
+
   /**
    * Tests an odd remainder of int[].
    */
@@ -156,14 +208,14 @@ public class MurmurHash3Test {
     Assert.assertEquals(result[0], h1);
     Assert.assertEquals(result[1], h2);
   }
-  
+
   @Test
   public void checkByteArrAllOnesZeros() { //byte[], test a ones byte and a zeros byte
-    byte[] key = { 
+    byte[] key = {
       0x54, 0x68, 0x65, 0x20, 0x71, 0x75, 0x69, 0x63, 0x6b, 0x20, 0x62, 0x72, 0x6f, 0x77, 0x6e,
       0x20, 0x66, 0x6f, 0x78, 0x20, 0x6a, 0x75, 0x6d, 0x70, 0x73, 0x20, 0x6f, 0x76, 0x65,
       0x72, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6c, 0x61, 0x7a, 0x79, 0x20, 0x64, 0x6f, 0x67,
-      (byte) 0xff, 0x64, 0x6f, 0x67, 0x00 
+      (byte) 0xff, 0x64, 0x6f, 0x67, 0x00
     };
     long[] result = MurmurHash3.hash(key, 0);
 
@@ -187,22 +239,22 @@ public class MurmurHash3Test {
     long[] out1 = hash(bArr, 0L);
     println(com.yahoo.sketches.Util.longToHexBytes(out1[0]));
     println(com.yahoo.sketches.Util.longToHexBytes(out1[1]));
-    
+
     println("Chars");
-    char[] cArr = {0X0201, 0X0403, 0X0605, 0X0807,   0X0a09, 0X0c0b, 0X0e0d, 0X100f, 
+    char[] cArr = {0X0201, 0X0403, 0X0605, 0X0807,   0X0a09, 0X0c0b, 0X0e0d, 0X100f,
         0X1211, 0X1413, 0X1615, 0X1817};
     out = hash(cArr, 0L);
     Assert.assertEquals(out, out1);
     println(com.yahoo.sketches.Util.longToHexBytes(out[0]));
     println(com.yahoo.sketches.Util.longToHexBytes(out[1]));
-    
+
     println("Ints");
     int[] iArr = {0X04030201, 0X08070605,   0X0c0b0a09, 0X100f0e0d,   0X14131211,   0X18171615};
     out = hash(iArr, 0L);
     Assert.assertEquals(out, out1);
     println(com.yahoo.sketches.Util.longToHexBytes(out[0]));
     println(com.yahoo.sketches.Util.longToHexBytes(out[1]));
-    
+
     println("Longs");
     long[] lArr = {0X0807060504030201L, 0X100f0e0d0c0b0a09L, 0X1817161514131211L};
     out = hash(lArr, 0L);
@@ -210,8 +262,8 @@ public class MurmurHash3Test {
     println(com.yahoo.sketches.Util.longToHexBytes(out[0]));
     println(com.yahoo.sketches.Util.longToHexBytes(out[1]));
   }
-  
-  
+
+
   //Helper methods
   private static long[] stringToLongs(String in) {
     byte[] bArr = in.getBytes(UTF_8);
@@ -255,9 +307,9 @@ public class MurmurHash3Test {
   public void printlnTest() {
     println("PRINTING: "+this.getClass().getName());
   }
-  
+
   /**
-   * @param s value to print 
+   * @param s value to print
    */
   static void println(String s) {
     //System.out.println(s); //disable here

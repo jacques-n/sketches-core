@@ -6,6 +6,7 @@
 package com.yahoo.sketches.hash;
 
 import java.io.Serializable;
+import com.yahoo.memory.Memory;
 
 
 /**
@@ -173,15 +174,28 @@ public final class MurmurHash3 implements Serializable {
    * @return the hash.
    */
   public static long[] hash(final byte[] key, final long seed) {
+    return hash(key, 0, key.length, seed);
+  }
+
+  /**
+   * Returns a long array of size 2, which is a 128-bit hash of the input.
+   *
+   * @param key The input byte[] array. Must be non-null and non-empty.
+   * @param start The starting index of the byte array.
+   * @param length The number of bytes to include in the byte array.
+   * @param seed A long valued seed.
+   * @return the hash.
+   */
+  public static long[] hash(final byte[] key, final int start, final int length, final long seed) {
     final HashState hashState = new HashState(seed, seed);
-    final int bytes = key.length; //in bytes
+    final int bytes = length; //in bytes
 
     // Number of full 128-bit blocks of 16 bytes.
     // Possible exclusion of a remainder of up to 15 bytes.
     final int nblocks = bytes >>> 4; //bytes / 16
 
     // Process the 128-bit blocks (the body) into the hash
-    for (int i = 0; i < nblocks; i++ ) { //16 bytes per block
+    for (int i = start; i < nblocks; i++ ) { //16 bytes per block
       final long k1 = getLong(key, i << 4, 8); //0, 16, 32, ...
       final long k2 = getLong(key, (i << 4) + 8, 8); //8, 24, 40, ...
       hashState.blockMix128(k1, k2);
@@ -196,6 +210,50 @@ public final class MurmurHash3 implements Serializable {
     final long k2;
     if (rem > 8) { //k1 -> whole; k2 -> partial
       k1 = getLong(key, tail, 8);
+      k2 = getLong(key, tail + 8, rem - 8);
+    }
+    else { //k1 -> whole, partial or 0; k2 == 0
+      k1 = (rem == 0) ? 0 : getLong(key, tail, rem);
+      k2 = 0;
+    }
+    // Mix the tail into the hash and return
+    return hashState.finalMix128(k1, k2, bytes);
+  }
+
+  //--Hash of ByteBuffer----------------------------------------------------
+  /**
+   * Returns a long array of size 2, which is a 128-bit hash of the input.
+   *
+   * @param key The input Memory. Must be non-null and non-empty.
+   * @param start The starting index of the memory.
+   * @param length The number of bytes to include in the memory.
+   * @param seed A long valued seed.
+   * @return the hash.
+   */
+  public static long[] hash(final Memory key, final int start, final int length, final long seed) {
+    final HashState hashState = new HashState(seed, seed);
+    final int bytes = length; //in bytes
+
+    // Number of full 128-bit blocks of 16 bytes.
+    // Possible exclusion of a remainder of up to 15 bytes.
+    final int nblocks = bytes >>> 4; //bytes / 16
+
+    // Process the 128-bit blocks (the body) into the hash
+    for (int i = start; i < nblocks; i++ ) { //16 bytes per block
+      final long k1 = key.getLong(i << 4); //0, 16, 32, ...
+      final long k2 = key.getLong((i << 4) + 8); //8, 24, 40, ...
+      hashState.blockMix128(k1, k2);
+    }
+
+    // Get the tail index, remainder length
+    final int tail = nblocks << 4; //16 bytes per block
+    final int rem = bytes - tail; // remainder bytes: 0,1,...,15
+
+    // Get the tail
+    final long k1;
+    final long k2;
+    if (rem > 8) { //k1 -> whole; k2 -> partial
+      k1 = key.getLong(tail);
       k2 = getLong(key, tail + 8, rem - 8);
     }
     else { //k1 -> whole, partial or 0; k2 == 0
@@ -296,6 +354,25 @@ public final class MurmurHash3 implements Serializable {
   }
 
   //--Helper methods----------------------------------------------------
+  /**
+   * Gets a long from the given byte array starting at the given byte array index and continuing for
+   * remainder (rem) bytes. The bytes are extracted in little-endian order. There is no limit
+   * checking.
+   *
+   * @param mem The given input Memory.
+   * @param index Zero-based index from the start of the byte array.
+   * @param rem Remainder bytes. An integer in the range [1,8].
+   * @return long
+   */
+  private static long getLong(final Memory mem, final int index, int rem) {
+    long out = 0L;
+    for (int i = rem; i-- > 0;) { //i= 7,6,5,4,3,2,1,0
+      final byte b = mem.getByte(index + i);
+      out ^= (b & 0xFFL) << (i * 8); //equivalent to |=
+    }
+    return out;
+  }
+
   /**
    * Gets a long from the given byte array starting at the given byte array index and continuing for
    * remainder (rem) bytes. The bytes are extracted in little-endian order. There is no limit
